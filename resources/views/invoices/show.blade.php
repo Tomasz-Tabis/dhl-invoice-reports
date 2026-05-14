@@ -1,10 +1,10 @@
 @extends('layouts.app')
 
 @section('content')
-    <div class="mb-6 flex flex-wrap items-start justify-between gap-4">
-        <div>
+    <div class="mb-6 flex flex-col items-stretch gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div class="min-w-0">
             <p class="text-sm font-medium uppercase tracking-wide text-yellow-700">Factuur</p>
-            <h1 class="mt-1 text-3xl font-semibold">{{ $invoiceUpload->original_pdf_filename }}</h1>
+            <h1 class="mt-1 break-words text-2xl font-semibold sm:text-3xl">{{ $invoiceUpload->original_pdf_filename }}</h1>
             <p class="mt-2 text-sm text-gray-600">Week {{ $invoiceUpload->week_number }}, {{ $invoiceUpload->year }}</p>
         </div>
 
@@ -30,16 +30,17 @@
     <form method="POST" action="{{ route('invoices.reports.store', $invoiceUpload) }}">
         @csrf
 
-        <div class="mb-4 flex flex-wrap items-center gap-3">
-            <button type="button" id="select-all" class="rounded-md bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-700">Alles selecteren</button>
-            <button type="button" id="deselect-all" class="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50">Alles deselecteren</button>
-            <button type="submit" class="rounded-md bg-yellow-500 px-4 py-2 text-sm font-semibold text-gray-950 hover:bg-yellow-400">Rapport genereren</button>
+        <div class="mb-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+            <button type="button" id="select-all" class="w-full rounded-md bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-700 sm:w-auto">Alles selecteren</button>
+            <button type="button" id="deselect-all" class="w-full rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50 sm:w-auto">Alles deselecteren</button>
+            <button type="submit" class="w-full rounded-md bg-yellow-500 px-4 py-2 text-sm font-semibold text-gray-950 hover:bg-yellow-400 sm:w-auto">Rapport genereren</button>
         </div>
 
         <div class="mb-8 overflow-hidden rounded-lg bg-white shadow-sm">
             <div class="border-b border-gray-200 px-6 py-4">
                 <h2 class="text-lg font-semibold">Stops chauffeurs</h2>
             </div>
+            <div class="overflow-x-auto">
             <table class="min-w-full divide-y divide-gray-200">
                 <thead class="bg-gray-50">
                     <tr>
@@ -59,16 +60,16 @@
                         @php($driverKey = $driver['type'].'|'.$driver['employee_number'])
                         <tr>
                             <td class="px-6 py-4">
-                                <input type="checkbox" name="selected_drivers[]" value="{{ $driverKey }}" class="driver-checkbox rounded border-gray-300 text-yellow-600 focus:ring-yellow-500" @checked(in_array($driverKey, old('selected_drivers', []), true))>
+                                <input type="checkbox" name="selected_drivers[]" value="{{ $driverKey }}" class="driver-checkbox h-5 w-5 rounded border-gray-300 text-yellow-600 focus:ring-yellow-500" @checked(in_array($driverKey, old('selected_drivers', []), true))>
                             </td>
-                            <td class="px-6 py-4 text-sm font-medium">{{ $driver['name'] }}</td>
-                            <td class="px-6 py-4 text-sm text-gray-600">{{ $driver['hub_code'] ?? '-' }}</td>
-                            <td class="px-6 py-4 text-sm text-gray-600">{{ $driver['raw_type'] ?? $driver['type'] }}</td>
-                            <td class="px-6 py-4 text-sm text-gray-600">{{ $driver['employee_number'] }}</td>
-                            <td class="px-6 py-4 text-right text-sm">{{ $driver['totals']['ma_vr'] }}</td>
-                            <td class="px-6 py-4 text-right text-sm">{{ $driver['totals']['za'] }}</td>
-                            <td class="px-6 py-4 text-right text-sm">{{ $driver['totals']['zo'] }}</td>
-                            <td class="px-6 py-4 text-right text-sm font-semibold">{{ $driver['totals']['total'] }}</td>
+                            <td class="max-w-xs break-words px-6 py-4 text-sm font-medium">{{ $driver['name'] }}</td>
+                            <td class="whitespace-nowrap px-6 py-4 text-sm text-gray-600">{{ $driver['hub_code'] ?? '-' }}</td>
+                            <td class="whitespace-nowrap px-6 py-4 text-sm text-gray-600">{{ $driver['raw_type'] ?? $driver['type'] }}</td>
+                            <td class="whitespace-nowrap px-6 py-4 text-sm text-gray-600">{{ $driver['employee_number'] }}</td>
+                            <td class="whitespace-nowrap px-6 py-4 text-right text-sm">{{ $driver['totals']['ma_vr'] }}</td>
+                            <td class="whitespace-nowrap px-6 py-4 text-right text-sm">{{ $driver['totals']['za'] }}</td>
+                            <td class="whitespace-nowrap px-6 py-4 text-right text-sm">{{ $driver['totals']['zo'] }}</td>
+                            <td class="whitespace-nowrap px-6 py-4 text-right text-sm font-semibold">{{ $driver['totals']['total'] }}</td>
                         </tr>
                     @empty
                         <tr>
@@ -77,12 +78,14 @@
                     @endforelse
                 </tbody>
             </table>
+            </div>
         </div>
 
         <div class="mb-8 overflow-hidden rounded-lg bg-white shadow-sm">
             <div class="border-b border-gray-200 px-6 py-4">
                 <h2 class="text-lg font-semibold">Uren chauffeurs</h2>
             </div>
+            <div class="overflow-x-auto">
             <table class="min-w-full divide-y divide-gray-200">
                 <thead class="bg-gray-50">
                     <tr>
@@ -102,16 +105,16 @@
                         @php($driverKey = $driver['type'].'|'.$driver['employee_number'])
                         <tr>
                             <td class="px-6 py-4">
-                                <input type="checkbox" name="selected_drivers[]" value="{{ $driverKey }}" class="driver-checkbox rounded border-gray-300 text-yellow-600 focus:ring-yellow-500" @checked(in_array($driverKey, old('selected_drivers', []), true))>
+                                <input type="checkbox" name="selected_drivers[]" value="{{ $driverKey }}" class="driver-checkbox h-5 w-5 rounded border-gray-300 text-yellow-600 focus:ring-yellow-500" @checked(in_array($driverKey, old('selected_drivers', []), true))>
                             </td>
-                            <td class="px-6 py-4 text-sm font-medium">{{ $driver['name'] }}</td>
-                            <td class="px-6 py-4 text-sm text-gray-600">{{ $driver['hub_code'] ?? '-' }}</td>
-                            <td class="px-6 py-4 text-sm text-gray-600">{{ $driver['raw_type'] ?? $driver['type'] }}</td>
-                            <td class="px-6 py-4 text-sm text-gray-600">{{ $driver['employee_number'] }}</td>
-                            <td class="px-6 py-4 text-right text-sm">{{ $driver['totals']['ma_vr'] }}</td>
-                            <td class="px-6 py-4 text-right text-sm">{{ $driver['totals']['za'] }}</td>
-                            <td class="px-6 py-4 text-right text-sm">{{ $driver['totals']['zo'] }}</td>
-                            <td class="px-6 py-4 text-right text-sm font-semibold">
+                            <td class="max-w-xs break-words px-6 py-4 text-sm font-medium">{{ $driver['name'] }}</td>
+                            <td class="whitespace-nowrap px-6 py-4 text-sm text-gray-600">{{ $driver['hub_code'] ?? '-' }}</td>
+                            <td class="whitespace-nowrap px-6 py-4 text-sm text-gray-600">{{ $driver['raw_type'] ?? $driver['type'] }}</td>
+                            <td class="whitespace-nowrap px-6 py-4 text-sm text-gray-600">{{ $driver['employee_number'] }}</td>
+                            <td class="whitespace-nowrap px-6 py-4 text-right text-sm">{{ $driver['totals']['ma_vr'] }}</td>
+                            <td class="whitespace-nowrap px-6 py-4 text-right text-sm">{{ $driver['totals']['za'] }}</td>
+                            <td class="whitespace-nowrap px-6 py-4 text-right text-sm">{{ $driver['totals']['zo'] }}</td>
+                            <td class="whitespace-nowrap px-6 py-4 text-right text-sm font-semibold">
                                 {{ app(\App\Services\HhMmTimeSumService::class)->sum([$driver['totals']['ma_vr'], $driver['totals']['za'], $driver['totals']['zo']]) }}
                             </td>
                         </tr>
@@ -122,6 +125,7 @@
                     @endforelse
                 </tbody>
             </table>
+            </div>
         </div>
     </form>
 
@@ -129,6 +133,7 @@
         <div class="border-b border-gray-200 px-6 py-4">
             <h2 class="text-lg font-semibold">Rapporten uit deze factuur</h2>
         </div>
+        <div class="overflow-x-auto">
         <table class="min-w-full divide-y divide-gray-200">
             <thead class="bg-gray-50">
                 <tr>
@@ -140,9 +145,9 @@
             <tbody class="divide-y divide-gray-100">
                 @forelse($reports as $report)
                     <tr>
-                        <td class="px-6 py-4 text-sm text-gray-600">{{ $report->created_at?->format('Y-m-d H:i') }}</td>
-                        <td class="px-6 py-4 text-sm text-gray-600">{{ count($report->selected_drivers ?? []) }}</td>
-                        <td class="px-6 py-4 text-right text-sm">
+                        <td class="whitespace-nowrap px-6 py-4 text-sm text-gray-600">{{ $report->created_at?->format('Y-m-d H:i') }}</td>
+                        <td class="whitespace-nowrap px-6 py-4 text-sm text-gray-600">{{ count($report->selected_drivers ?? []) }}</td>
+                        <td class="whitespace-nowrap px-6 py-4 text-right text-sm">
                             <div class="flex justify-end gap-2">
                                 <a href="{{ route('reports.download', $report) }}" title="Rapport downloaden" aria-label="Rapport downloaden" class="inline-flex h-9 w-9 items-center justify-center rounded-lg text-green-600 transition duration-200 hover:scale-110 hover:bg-green-100">
                                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -175,6 +180,7 @@
                 @endforelse
             </tbody>
         </table>
+        </div>
     </section>
 
     <script>

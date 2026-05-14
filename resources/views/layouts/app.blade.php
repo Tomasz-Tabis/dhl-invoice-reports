@@ -10,9 +10,9 @@
     <div class="min-h-screen">
         @auth
             <nav class="border-b border-gray-200 bg-white">
-                <div class="mx-auto max-w-6xl px-4 py-4">
+                <div class="mx-auto max-w-7xl px-4 py-4 sm:px-6 lg:px-8 md:flex md:items-center md:justify-between">
                     <div class="flex items-center justify-between">
-                        <a href="{{ route('dashboard') }}" class="text-lg font-semibold">
+                        <a href="{{ route('dashboard') }}" class="text-base font-semibold sm:text-lg">
                             DHL PDF Rapporten
                         </a>
 
@@ -43,9 +43,9 @@
                             <a href="{{ route('admin.users.index') }}" class="block rounded-md px-2 py-2 text-gray-700 hover:bg-gray-50 hover:text-gray-950 md:px-0 md:py-0 md:hover:bg-transparent">Gebruikers</a>
                         @endif
 
-                        <span class="px-2 py-2 text-gray-500 md:px-0 md:py-0">{{ auth()->user()->name }}</span>
+                        <span class="break-words px-2 py-2 text-gray-500 md:max-w-40 md:truncate md:px-0 md:py-0">{{ auth()->user()->name }}</span>
 
-                        <form method="POST" action="{{ route('logout') }}">
+                        <form method="POST" action="{{ route('logout') }}" class="w-full md:w-auto">
                             @csrf
                             <button type="submit" class="w-full rounded-md bg-gray-900 px-3 py-2 text-left text-white hover:bg-gray-700 md:w-auto md:text-center">
                                 Uitloggen
@@ -56,7 +56,7 @@
             </nav>
         @endauth
 
-        <main class="mx-auto max-w-6xl px-4 py-8">
+        <main class="mx-auto max-w-7xl px-4 py-6 text-sm sm:px-6 sm:py-8 sm:text-base lg:px-8">
             @if(session('status'))
                 <div class="mb-6 rounded-md border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
                     {{ session('status') }}
