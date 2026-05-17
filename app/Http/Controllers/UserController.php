@@ -6,6 +6,7 @@ use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rules\Password;
 use Illuminate\View\View;
 
@@ -51,5 +52,28 @@ class UserController extends Controller
         return redirect()
             ->route('admin.users.index')
             ->with('status', 'Gebruiker is aangemaakt.');
+    }
+
+    public function destroy(Request $request, User $user): RedirectResponse
+    {
+        if ($request->user()->is($user)) {
+            return redirect()
+                ->route('admin.users.index')
+                ->withErrors(['user' => 'Je kunt je eigen account niet verwijderen.']);
+        }
+
+        foreach ($user->reports as $report) {
+            Storage::delete($report->generated_pdf_path);
+        }
+
+        foreach ($user->invoiceUploads as $invoiceUpload) {
+            Storage::delete($invoiceUpload->original_pdf_path);
+        }
+
+        $user->delete();
+
+        return redirect()
+            ->route('admin.users.index')
+            ->with('status', 'Gebruiker is verwijderd.');
     }
 }

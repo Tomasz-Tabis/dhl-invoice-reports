@@ -25,6 +25,7 @@ class SecurityAndWorkflowTest extends TestCase
     {
         $user = User::factory()->create(['role' => 'user']);
         $admin = User::factory()->create(['role' => 'admin']);
+        $managedUser = User::factory()->create(['role' => 'user']);
 
         $this->get('/register')->assertNotFound();
 
@@ -32,9 +33,45 @@ class SecurityAndWorkflowTest extends TestCase
             ->get(route('admin.users.index'))
             ->assertForbidden();
 
+        $this->actingAs($user)
+            ->delete(route('admin.users.destroy', $managedUser))
+            ->assertForbidden();
+
         $this->actingAs($admin)
             ->get(route('admin.users.index'))
             ->assertOk();
+    }
+
+    public function test_admin_can_delete_user_and_their_stored_files(): void
+    {
+        Storage::fake();
+
+        $admin = User::factory()->create(['role' => 'admin']);
+        $user = User::factory()->create(['role' => 'user']);
+        $invoiceUpload = $this->createInvoiceUpload($user);
+        $report = $this->createReport($user, $invoiceUpload);
+
+        $this->actingAs($admin)
+            ->delete(route('admin.users.destroy', $user))
+            ->assertRedirect(route('admin.users.index'));
+
+        $this->assertDatabaseMissing('users', ['id' => $user->id]);
+        $this->assertDatabaseMissing('invoice_uploads', ['id' => $invoiceUpload->id]);
+        $this->assertDatabaseMissing('reports', ['id' => $report->id]);
+        Storage::assertMissing($invoiceUpload->original_pdf_path);
+        Storage::assertMissing($report->generated_pdf_path);
+    }
+
+    public function test_admin_cannot_delete_their_own_account(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+
+        $this->actingAs($admin)
+            ->delete(route('admin.users.destroy', $admin))
+            ->assertRedirect(route('admin.users.index'))
+            ->assertSessionHasErrors('user');
+
+        $this->assertDatabaseHas('users', ['id' => $admin->id]);
     }
 
     public function test_users_can_only_access_their_own_invoices_and_reports(): void

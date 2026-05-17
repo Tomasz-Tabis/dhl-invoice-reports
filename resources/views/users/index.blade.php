@@ -21,6 +21,7 @@
                     <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Email</th>
                     <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Rol</th>
                     <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Aangemaakt</th>
+                    <th class="px-6 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-500">Acties</th>
                 </tr>
             </thead>
             <tbody class="divide-y divide-gray-100 bg-white">
@@ -32,10 +33,23 @@
                             <span class="rounded-full bg-gray-100 px-2 py-1 text-xs font-semibold text-gray-700">{{ $user->role }}</span>
                         </td>
                         <td class="whitespace-nowrap px-6 py-4 text-sm text-gray-600">{{ $user->created_at?->format('Y-m-d H:i') }}</td>
+                        <td class="whitespace-nowrap px-6 py-4 text-right text-sm">
+                            @if(auth()->id() !== $user->id)
+                                <form method="POST" action="{{ route('admin.users.destroy', $user) }}" onsubmit="return confirm('Weet je zeker dat je deze gebruiker wilt verwijderen? Alle facturen en rapporten van deze gebruiker worden ook verwijderd.');">
+                                    @csrf
+                                    @method('DELETE')
+                                    <button type="submit" class="rounded-md border border-red-200 px-3 py-1.5 font-semibold text-red-700 hover:bg-red-50">
+                                        Verwijderen
+                                    </button>
+                                </form>
+                            @else
+                                <span class="text-gray-400">Huidige gebruiker</span>
+                            @endif
+                        </td>
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="4" class="px-6 py-8 text-center text-sm text-gray-500">Geen gebruikers.</td>
+                        <td colspan="5" class="px-6 py-8 text-center text-sm text-gray-500">Geen gebruikers.</td>
                     </tr>
                 @endforelse
             </tbody>

@@ -33,6 +33,6 @@ Route::middleware('auth')->group(function () {
     Route::delete('/reports/{report}', [ReportController::class, 'destroy'])->name('reports.destroy');
 
     Route::middleware('admin')->prefix('admin')->name('admin.')->group(function () {
-        Route::resource('users', UserController::class)->only(['index', 'create', 'store']);
+        Route::resource('users', UserController::class)->only(['index', 'create', 'store', 'destroy']);
     });
 });
