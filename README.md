@@ -7,6 +7,47 @@
 <a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
 </p>
 
+## Production deploy with committed Vite assets
+
+This application uses Vite, but production servers do not need Node.js or npm at runtime.
+
+public/build is committed intentionally for production deploys on servers without modern Node.js.
+
+### Local build before deploy
+
+Run these commands locally:
+
+```bash
+npm install
+npm run build
+git add public/build
+git commit
+git push
+```
+
+### Production deploy
+
+Run these commands on production:
+
+```bash
+git pull
+composer install --no-dev --optimize-autoloader
+php artisan migrate --force
+php artisan config:cache
+php artisan route:cache
+php artisan view:cache
+```
+
+Do not run `npm install` or `npm run build` on production. Laravel's `@vite(...)` helper reads `public/build/manifest.json` when the Vite dev server is not running, so the committed `public/build` directory is enough for runtime.
+
+### Production checklist
+
+- `APP_ENV=production`
+- `APP_DEBUG=false`
+- `APP_URL=https://invoice.seven-serve.com`
+- `public/build/manifest.json` exists after `git pull`
+- `public/hot` does not exist on production
+
 ## About Laravel
 
 Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
