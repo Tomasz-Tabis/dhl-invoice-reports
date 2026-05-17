@@ -22,9 +22,13 @@
     @enderror
 
     @php
-        $isStopsDriver = fn ($driver) => ($driver['type'] ?? null) === 'STOPS' || ($driver['type'] ?? null) === 'BREPAK';
-        $brepakDrivers = collect($drivers)->filter($isStopsDriver)->values();
-        $hourDrivers = collect($drivers)->reject($isStopsDriver)->values();
+        $isStopsDriver = fn ($driver) => ($driver['type'] ?? null) === 'STOPS';
+        $isIgnoredDriver = fn ($driver) => ($driver['type'] ?? null) === 'IGNORE'
+            || str_contains(strtoupper($driver['raw_type'] ?? ''), 'NCC')
+            || str_contains(strtoupper($driver['type'] ?? ''), 'NCC');
+        $visibleDrivers = collect($drivers)->reject($isIgnoredDriver)->values();
+        $stopDrivers = $visibleDrivers->filter($isStopsDriver)->values();
+        $hourDrivers = $visibleDrivers->reject($isStopsDriver)->values();
     @endphp
 
     <form method="POST" action="{{ route('invoices.reports.store', $invoiceUpload) }}">
@@ -56,7 +60,7 @@
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-100">
-                    @forelse($brepakDrivers as $driver)
+                    @forelse($stopDrivers as $driver)
                         @php($driverKey = $driver['type'].'|'.$driver['employee_number'])
                         <tr>
                             <td class="px-6 py-4">

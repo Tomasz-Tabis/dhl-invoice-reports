@@ -20,6 +20,7 @@ class DhlInvoiceParserService
      *     week_number: int,
      *     year: int,
      *     drivers: array<int, array{
+     *         company: string,
      *         hub_code: string,
      *         raw_type: string,
      *         type: string,
@@ -97,12 +98,12 @@ class DhlInvoiceParserService
     }
 
     /**
-     * @return array<int, array{hub_code: string, raw_type: string, type: string, name: string, employee_number: string, rows: array<int, array<string, mixed>>, totals: array<string, mixed>}>
+     * @return array<int, array{company: string, hub_code: string, raw_type: string, type: string, name: string, employee_number: string, rows: array<int, array<string, mixed>>, totals: array<string, mixed>}>
      */
     private function parseDrivers(string $text): array
     {
         preg_match_all(
-            '/Specificatie ritten gereden door VM - (?<driver>.+?) \((?<employee_number>\d+)\) op (?<raw_type>[A-Z]{3}(?:PAK(?:\s*\(Specialized\))?|ZON))(?<body>.*?)(?=Specificatie ritten gereden door VM -|Appendix: Ritgegevens|\z)/su',
+            '/Specificatie ritten gereden door\s+(?<company>.+?)\s+-\s+(?<driver>.+?)\s+\((?<employee_number>\d+)\)\s+op\s+(?<raw_type>[A-Z]{3}(?:PAK(?:\s*\(Specialized\))?|ZON)|[^\r\n]*\bNCC\b[^\r\n]*)(?<body>.*?)(?=Specificatie ritten gereden door\s+.+?\s+-|Appendix: Ritgegevens|\z)/su',
             $text,
             $matches,
             PREG_SET_ORDER,
@@ -113,20 +114,52 @@ class DhlInvoiceParserService
         }
 
         $drivers = [];
+        $skippedIgnoredBlock = false;
 
         foreach ($matches as $match) {
-            $invoiceType = $this->parseInvoiceType($match['raw_type']);
+            $company = trim(preg_replace('/\s+/u', ' ', $match['company']));
+            $driver = trim(preg_replace('/\s+/u', ' ', $match['driver']));
+            $rawType = preg_replace('/\s+/u', ' ', trim($match['raw_type']));
+            $name = $this->normalizeDriverName($driver);
+            $employeeNumber = $match['employee_number'];
+
+            Log::debug('DHL specification block detected', [
+                'company' => $company,
+                'driver' => $driver,
+                'employee_number' => $employeeNumber,
+                'raw_type' => $rawType,
+            ]);
+
+            $invoiceType = $this->parseInvoiceType($rawType);
+
+            Log::debug('DHL normalized type detected', [
+                'raw_type' => $invoiceType['raw_type'],
+                'hub_code' => $invoiceType['hub_code'],
+                'normalized_type' => $invoiceType['type'],
+            ]);
+
+            if ($invoiceType['type'] === 'IGNORE' || $this->containsNcc($match['body'])) {
+                $skippedIgnoredBlock = true;
+
+                Log::debug('DHL NCC block skipped', [
+                    'raw_type' => $invoiceType['raw_type'],
+                    'driver' => $name ?? null,
+                ]);
+
+                continue;
+            }
 
             Log::debug('DHL driver block detected', [
-                'name' => $this->normalizeDriverName($match['driver']),
-                'employee_number' => $match['employee_number'],
+                'company' => $company,
+                'name' => $name,
+                'employee_number' => $employeeNumber,
                 'hub_code' => $invoiceType['hub_code'],
                 'raw_type' => $invoiceType['raw_type'],
                 'type' => $invoiceType['type'],
             ]);
 
             $rowsByDate = $invoiceType['type'] === 'STOPS'
-                ? $this->parseBrepakRows($match['body'])
+                ? $this->parseStopRows($match['body'])
                 : $this->parseHourRows($match['body'], $invoiceType['type']);
 
             if ($rowsByDate === []) {
@@ -137,28 +170,29 @@ class DhlInvoiceParserService
             usort($rows, fn (array $a, array $b): int => $this->dateKey($a['date']) <=> $this->dateKey($b['date']));
 
             $totals = $invoiceType['type'] === 'STOPS'
-                ? $this->calculateBrepakTotals($rows)
+                ? $this->calculateStopTotals($rows)
                 : $this->calculateHourTotals($rows);
 
             Log::debug('DHL parsed driver result', [
-                'name' => $this->normalizeDriverName($match['driver']),
+                'name' => $name,
                 'type' => $invoiceType['type'],
                 'rows_count' => count($rows),
                 'totals' => $totals,
             ]);
 
             $drivers[] = [
+                'company' => $company,
                 'hub_code' => $invoiceType['hub_code'],
                 'raw_type' => $invoiceType['raw_type'],
                 'type' => $invoiceType['type'],
-                'name' => $this->normalizeDriverName($match['driver']),
-                'employee_number' => $match['employee_number'],
+                'name' => $name,
+                'employee_number' => $employeeNumber,
                 'rows' => $rows,
                 'totals' => $totals,
             ];
         }
 
-        if ($drivers === []) {
+        if ($drivers === [] && ! $skippedIgnoredBlock) {
             throw DhlInvoiceParserException::missingDrivers();
         }
 
@@ -168,7 +202,7 @@ class DhlInvoiceParserService
     /**
      * @return array<string, array{date: string, ma_vr: int, za: int, zo: int}>
      */
-    private function parseBrepakRows(string $body): array
+    private function parseStopRows(string $body): array
     {
         preg_match_all(
             '/(?<date>\d{2}-\d{2}-\d{4})\s+(?<postwijk>\d{4})\s+(?<planned>\d+)\s*\/\s*(?<success>\d+)/u',
@@ -256,6 +290,14 @@ class DhlInvoiceParserService
     {
         $rawType = preg_replace('/\s+/u', ' ', trim($rawType));
 
+        if ($this->containsNcc($rawType)) {
+            return [
+                'hub_code' => '',
+                'raw_type' => $rawType,
+                'type' => 'IGNORE',
+            ];
+        }
+
         preg_match('/^(?<hub_code>[A-Z]{3})(?<suffix>PAK|ZON)(?<specialized>\s+\(Specialized\))?$/u', $rawType, $matches);
 
         $type = match (true) {
@@ -275,7 +317,7 @@ class DhlInvoiceParserService
      * @param  array<int, array{date: string, ma_vr: int, za: int, zo: int}>  $rows
      * @return array{ma_vr: int, za: int, zo: int, total: int}
      */
-    private function calculateBrepakTotals(array $rows): array
+    private function calculateStopTotals(array $rows): array
     {
         $totals = [
             'ma_vr' => array_sum(array_column($rows, 'ma_vr')),
@@ -320,6 +362,11 @@ class DhlInvoiceParserService
         }
 
         return $this->titleName($rawName);
+    }
+
+    private function containsNcc(string $value): bool
+    {
+        return preg_match('/\bNCC\b/iu', $value) === 1;
     }
 
     private function titleName(string $value): string

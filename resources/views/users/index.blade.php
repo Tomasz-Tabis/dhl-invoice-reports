@@ -18,7 +18,7 @@
             <thead class="bg-gray-50">
                 <tr>
                     <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Naam</th>
-                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Email</th>
+                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">E-mail</th>
                     <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Rol</th>
                     <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Aangemaakt</th>
                     <th class="px-6 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-500">Acties</th>
@@ -30,7 +30,7 @@
                         <td class="max-w-xs break-words px-6 py-4 text-sm font-medium">{{ $user->name }}</td>
                         <td class="max-w-xs break-words px-6 py-4 text-sm text-gray-600">{{ $user->email }}</td>
                         <td class="whitespace-nowrap px-6 py-4 text-sm">
-                            <span class="rounded-full bg-gray-100 px-2 py-1 text-xs font-semibold text-gray-700">{{ $user->role }}</span>
+                            <span class="rounded-full bg-gray-100 px-2 py-1 text-xs font-semibold text-gray-700">{{ $user->isAdmin() ? 'Beheerder' : 'Gebruiker' }}</span>
                         </td>
                         <td class="whitespace-nowrap px-6 py-4 text-sm text-gray-600">{{ $user->created_at?->format('Y-m-d H:i') }}</td>
                         <td class="whitespace-nowrap px-6 py-4 text-right text-sm">

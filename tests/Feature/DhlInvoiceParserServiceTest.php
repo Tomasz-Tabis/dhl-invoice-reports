@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Services\DhlInvoiceParserService;
+use Illuminate\Support\Facades\Log;
 use Tests\TestCase;
 
 class DhlInvoiceParserServiceTest extends TestCase
@@ -89,6 +90,7 @@ class DhlInvoiceParserServiceTest extends TestCase
         ]));
 
         $this->assertCount(1, $drivers);
+        $this->assertSame('VM', $drivers[0]['company']);
         $this->assertSame('BRE', $drivers[0]['hub_code']);
         $this->assertSame('BREPAK (Specialized)', $drivers[0]['raw_type']);
         $this->assertSame('HOURS_SPECIALIZED', $drivers[0]['type']);
@@ -132,21 +134,130 @@ class DhlInvoiceParserServiceTest extends TestCase
         ]));
 
         $this->assertSame([
+            'company' => 'VM',
             'hub_code' => 'AMS',
             'raw_type' => 'AMSPAK',
             'type' => 'STOPS',
-        ], array_intersect_key($drivers[0], array_flip(['hub_code', 'raw_type', 'type'])));
+        ], array_intersect_key($drivers[0], array_flip(['company', 'hub_code', 'raw_type', 'type'])));
 
         $this->assertSame([
+            'company' => 'VM',
             'hub_code' => 'RTM',
             'raw_type' => 'RTMZON',
             'type' => 'HOURS',
-        ], array_intersect_key($drivers[1], array_flip(['hub_code', 'raw_type', 'type'])));
+        ], array_intersect_key($drivers[1], array_flip(['company', 'hub_code', 'raw_type', 'type'])));
 
         $this->assertSame([
+            'company' => 'VM',
             'hub_code' => 'UTR',
             'raw_type' => 'UTRPAK (Specialized)',
             'type' => 'HOURS_SPECIALIZED',
-        ], array_intersect_key($drivers[2], array_flip(['hub_code', 'raw_type', 'type'])));
+        ], array_intersect_key($drivers[2], array_flip(['company', 'hub_code', 'raw_type', 'type'])));
+    }
+
+    public function test_it_detects_arbitrary_company_names(): void
+    {
+        Log::spy();
+
+        $service = app(DhlInvoiceParserService::class);
+        $reflection = new \ReflectionClass($service);
+        $method = $reflection->getMethod('parseDrivers');
+        $method->setAccessible(true);
+
+        $drivers = $method->invoke($service, implode("\n", [
+            'Specificatie ritten gereden door ABC - SHAH, AADIL (822088) op AMSPAK',
+            'Datum Postwijk Stops plan/succes',
+            '01-04-2026 1000 220 / 207',
+            'Specificatie ritten gereden door Transportbedrijf XYZ - MAAS, WILCO (824171) op RTMZON',
+            'Datum uren p/u (â‚¬ ) zondag uren zon/feest p/u (â‚¬ ) bedrag (â‚¬ )',
+            '05-04-2026 03:16 35,16 03:16 15,24 164,64',
+            'Specificatie ritten gereden door VervoersMeesters - MAAS, WILCO (824172) op UTRPAK (Specialized)',
+            'Datum uren p/u (â‚¬ ) bedrag (â‚¬ )',
+            '06-04-2026 01:20 33,53 44,71',
+            'Specificatie ritten gereden door Test Company - TEST, DRIVER (123456) op NCC',
+            'Gereden ritten op NCC',
+            '07-04-2026 1000 999 / 999',
+            'Appendix: Ritgegevens',
+        ]));
+
+        $this->assertCount(3, $drivers);
+        $this->assertSame(['ABC', 'Transportbedrijf XYZ', 'VervoersMeesters'], array_column($drivers, 'company'));
+        $this->assertSame(['AMSPAK', 'RTMZON', 'UTRPAK (Specialized)'], array_column($drivers, 'raw_type'));
+        $this->assertSame(['STOPS', 'HOURS', 'HOURS_SPECIALIZED'], array_column($drivers, 'type'));
+        $this->assertNotContains('123456', array_column($drivers, 'employee_number'));
+
+        Log::shouldHaveReceived('debug')
+            ->with('DHL specification block detected', [
+                'company' => 'Transportbedrijf XYZ',
+                'driver' => 'MAAS, WILCO',
+                'employee_number' => '824171',
+                'raw_type' => 'RTMZON',
+            ])
+            ->once();
+
+        Log::shouldHaveReceived('debug')
+            ->with('DHL normalized type detected', [
+                'raw_type' => 'RTMZON',
+                'hub_code' => 'RTM',
+                'normalized_type' => 'HOURS',
+            ])
+            ->once();
+    }
+
+    public function test_it_skips_ncc_driver_blocks(): void
+    {
+        Log::spy();
+
+        $service = app(DhlInvoiceParserService::class);
+        $reflection = new \ReflectionClass($service);
+        $method = $reflection->getMethod('parseDrivers');
+        $method->setAccessible(true);
+
+        $drivers = $method->invoke($service, implode("\n", [
+            'Specificatie ritten gereden door VM - DRIVER, NCC (999999) op NCC',
+            'Gereden ritten op NCC',
+            '01-04-2026 1000 999 / 999',
+            'Specificatie ritten gereden door VM - DRIVER, ONE (111111) op AMSPAK',
+            'Datum Postwijk Stops plan/succes',
+            '01-04-2026 1000 220 / 207',
+            'Appendix: Ritgegevens',
+        ]));
+
+        $this->assertCount(1, $drivers);
+        $this->assertSame('VM', $drivers[0]['company']);
+        $this->assertSame('111111', $drivers[0]['employee_number']);
+        $this->assertSame('AMSPAK', $drivers[0]['raw_type']);
+        $this->assertNotContains('NCC', array_column($drivers, 'raw_type'));
+        $this->assertNotContains('IGNORE', array_column($drivers, 'type'));
+
+        Log::shouldHaveReceived('debug')
+            ->with('DHL NCC block skipped', [
+                'raw_type' => 'NCC',
+                'driver' => 'Ncc Driver',
+            ])
+            ->once();
+    }
+
+    public function test_it_skips_sections_containing_ncc(): void
+    {
+        $service = app(DhlInvoiceParserService::class);
+        $reflection = new \ReflectionClass($service);
+        $method = $reflection->getMethod('parseDrivers');
+        $method->setAccessible(true);
+
+        $drivers = $method->invoke($service, implode("\n", [
+            'Specificatie ritten gereden door VM - DRIVER, NCC (999999) op AMSPAK',
+            'Gereden ritten op NCC',
+            '01-04-2026 1000 999 / 999',
+            'Specificatie ritten gereden door VM - DRIVER, ONE (111111) op AMSPAK',
+            'Datum Postwijk Stops plan/succes',
+            '01-04-2026 1000 220 / 207',
+            'Appendix: Ritgegevens',
+        ]));
+
+        $this->assertCount(1, $drivers);
+        $this->assertSame('VM', $drivers[0]['company']);
+        $this->assertSame('111111', $drivers[0]['employee_number']);
+        $this->assertSame(207, $drivers[0]['totals']['total']);
     }
 }

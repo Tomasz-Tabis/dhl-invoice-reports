@@ -9,7 +9,7 @@
             @csrf
 
             <div>
-                <label for="email" class="block text-sm font-medium text-gray-700">Email</label>
+                <label for="email" class="block text-sm font-medium text-gray-700">E-mail</label>
                 <input
                     id="email"
                     name="email"

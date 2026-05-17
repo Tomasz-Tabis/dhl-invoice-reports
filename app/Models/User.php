@@ -36,6 +36,11 @@ class User extends Authenticatable
         return $this->hasMany(InvoiceUpload::class);
     }
 
+    public function failedInvoiceUploads(): HasMany
+    {
+        return $this->hasMany(FailedInvoiceUpload::class);
+    }
+
     public function reports(): HasMany
     {
         return $this->hasMany(Report::class);

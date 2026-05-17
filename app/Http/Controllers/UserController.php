@@ -70,6 +70,10 @@ class UserController extends Controller
             Storage::delete($invoiceUpload->original_pdf_path);
         }
 
+        foreach ($user->failedInvoiceUploads as $failedInvoiceUpload) {
+            Storage::delete($failedInvoiceUpload->original_pdf_path);
+        }
+
         $user->delete();
 
         return redirect()

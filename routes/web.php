@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\FailedInvoiceUploadController;
 use App\Http\Controllers\InvoiceController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\UserController;
@@ -27,6 +28,10 @@ Route::middleware('auth')->group(function () {
     Route::post('/invoices/{invoiceUpload}/reports', [InvoiceController::class, 'generateSelectedReport'])->name('invoices.reports.store');
     Route::get('/invoices/{invoiceUpload}/download', [InvoiceController::class, 'download'])->name('invoices.download');
     Route::delete('/invoices/{invoiceUpload}', [InvoiceController::class, 'destroy'])->name('invoices.destroy');
+
+    Route::get('/failed-invoices', [FailedInvoiceUploadController::class, 'index'])->name('failed-invoices.index');
+    Route::get('/failed-invoices/{failedInvoiceUpload}/download', [FailedInvoiceUploadController::class, 'download'])->name('failed-invoices.download');
+    Route::delete('/failed-invoices/{failedInvoiceUpload}', [FailedInvoiceUploadController::class, 'destroy'])->name('failed-invoices.destroy');
 
     Route::get('/reports', [ReportController::class, 'index'])->name('reports.index');
     Route::get('/reports/{report}/download', [ReportController::class, 'download'])->name('reports.download');

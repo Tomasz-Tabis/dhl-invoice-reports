@@ -18,18 +18,19 @@ class ReportPdfService
     {
         $drivers = collect($parsedData['drivers'] ?? [])
             ->filter(fn (array $driver): bool => $this->driverIsSelected($driver, $selectedEmployeeNumbers))
+            ->reject(fn (array $driver): bool => $this->isIgnoredDriver($driver))
             ->values()
             ->all();
-        $brepakDrivers = array_values(array_filter($drivers, fn (array $driver): bool => $this->isStopsDriver($driver)));
+        $stopDrivers = array_values(array_filter($drivers, fn (array $driver): bool => $this->isStopsDriver($driver)));
         $hourDrivers = array_values(array_filter($drivers, fn (array $driver): bool => ! $this->isStopsDriver($driver)));
 
-        $grandStopTotals = $this->calculateGrandStopTotals($brepakDrivers);
+        $grandStopTotals = $this->calculateGrandStopTotals($stopDrivers);
         $grandTimeTotals = $this->calculateGrandTimeTotals($hourDrivers);
 
         return Pdf::loadView('reports.pdf', [
             'weekNumber' => $parsedData['week_number'],
             'year' => $parsedData['year'],
-            'brepakDrivers' => $brepakDrivers,
+            'stopDrivers' => $stopDrivers,
             'hourDrivers' => $hourDrivers,
             'grandStopTotals' => $grandStopTotals,
             'grandTimeTotals' => $grandTimeTotals,
@@ -52,16 +53,18 @@ class ReportPdfService
     /**
      * @param  array<string, mixed>  $parsedData
      * @param  array<int, string>  $selectedEmployeeNumbers
-     * @return array<int, array{employee_number: string, name: string, type: string, hub_code?: string, raw_type?: string}>
+     * @return array<int, array{employee_number: string, name: string, type: string, company?: string|null, hub_code?: string|null, raw_type?: string|null}>
      */
     public function selectedDriversSummary(array $parsedData, array $selectedEmployeeNumbers): array
     {
         return collect($parsedData['drivers'] ?? [])
             ->filter(fn (array $driver): bool => $this->driverIsSelected($driver, $selectedEmployeeNumbers))
+            ->reject(fn (array $driver): bool => $this->isIgnoredDriver($driver))
             ->map(fn (array $driver): array => [
                 'employee_number' => $driver['employee_number'],
                 'name' => $driver['name'],
                 'type' => $driver['type'],
+                'company' => $driver['company'] ?? null,
                 'hub_code' => $driver['hub_code'] ?? null,
                 'raw_type' => $driver['raw_type'] ?? null,
             ])
@@ -84,8 +87,17 @@ class ReportPdfService
      */
     private function isStopsDriver(array $driver): bool
     {
-        return ($driver['type'] ?? null) === 'STOPS'
-            || ($driver['type'] ?? null) === 'BREPAK';
+        return ($driver['type'] ?? null) === 'STOPS';
+    }
+
+    /**
+     * @param  array<string, mixed>  $driver
+     */
+    private function isIgnoredDriver(array $driver): bool
+    {
+        return ($driver['type'] ?? null) === 'IGNORE'
+            || str_contains(strtoupper($driver['raw_type'] ?? ''), 'NCC')
+            || str_contains(strtoupper($driver['type'] ?? ''), 'NCC');
     }
 
     /**

@@ -14,6 +14,7 @@ class DashboardController extends Controller
         return view('dashboard', [
             'user' => $user,
             'invoiceUploadsCount' => $user->invoiceUploads()->count(),
+            'failedInvoiceUploadsCount' => $user->failedInvoiceUploads()->count(),
             'reportsCount' => $user->reports()->count(),
             'recentReports' => $user->reports()
                 ->latest()

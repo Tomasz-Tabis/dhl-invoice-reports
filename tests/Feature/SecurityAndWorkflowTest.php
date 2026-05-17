@@ -2,11 +2,15 @@
 
 namespace Tests\Feature;
 
+use App\Exceptions\DhlInvoiceParserException;
+use App\Models\FailedInvoiceUpload;
 use App\Models\InvoiceUpload;
 use App\Models\Report;
 use App\Models\User;
+use App\Services\DhlInvoiceParserService;
 use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
@@ -50,6 +54,7 @@ class SecurityAndWorkflowTest extends TestCase
         $user = User::factory()->create(['role' => 'user']);
         $invoiceUpload = $this->createInvoiceUpload($user);
         $report = $this->createReport($user, $invoiceUpload);
+        $failedInvoiceUpload = $this->createFailedInvoiceUpload($user);
 
         $this->actingAs($admin)
             ->delete(route('admin.users.destroy', $user))
@@ -58,8 +63,10 @@ class SecurityAndWorkflowTest extends TestCase
         $this->assertDatabaseMissing('users', ['id' => $user->id]);
         $this->assertDatabaseMissing('invoice_uploads', ['id' => $invoiceUpload->id]);
         $this->assertDatabaseMissing('reports', ['id' => $report->id]);
+        $this->assertDatabaseMissing('failed_invoice_uploads', ['id' => $failedInvoiceUpload->id]);
         Storage::assertMissing($invoiceUpload->original_pdf_path);
         Storage::assertMissing($report->generated_pdf_path);
+        Storage::assertMissing($failedInvoiceUpload->original_pdf_path);
     }
 
     public function test_admin_cannot_delete_their_own_account(): void
@@ -187,6 +194,83 @@ class SecurityAndWorkflowTest extends TestCase
             ->assertSessionHasErrors('selected_drivers');
     }
 
+    public function test_failed_invoice_upload_is_saved_when_parser_fails(): void
+    {
+        Storage::fake();
+
+        $user = User::factory()->create();
+        $this->mock(DhlInvoiceParserService::class)
+            ->shouldReceive('parse')
+            ->once()
+            ->andThrow(DhlInvoiceParserException::unreadablePdf());
+
+        $this->actingAs($user)
+            ->from(route('invoices.upload'))
+            ->post(route('invoices.store'), [
+                'invoice_pdf' => UploadedFile::fake()->create('broken.pdf', 10, 'application/pdf'),
+            ])
+            ->assertRedirect(route('invoices.upload'))
+            ->assertSessionHasErrors([
+                'invoice_pdf' => 'De factuur kon niet worden verwerkt, maar het bestand is opgeslagen in mislukte uploads.',
+            ]);
+
+        $this->assertDatabaseMissing('invoice_uploads', [
+            'user_id' => $user->id,
+            'original_pdf_filename' => 'broken.pdf',
+        ]);
+
+        $this->assertDatabaseHas('failed_invoice_uploads', [
+            'user_id' => $user->id,
+            'original_pdf_filename' => 'broken.pdf',
+            'error_message' => 'PDF is onleesbaar of bevat geen tekst.',
+        ]);
+
+        $failedInvoiceUpload = FailedInvoiceUpload::firstOrFail();
+        $this->assertStringStartsWith('failed/', $failedInvoiceUpload->original_pdf_path);
+        Storage::assertExists($failedInvoiceUpload->original_pdf_path);
+    }
+
+    public function test_users_can_only_access_their_own_failed_invoice_uploads(): void
+    {
+        Storage::fake();
+
+        $owner = User::factory()->create();
+        $otherUser = User::factory()->create();
+        $failedInvoiceUpload = $this->createFailedInvoiceUpload($owner);
+
+        $this->actingAs($otherUser)
+            ->get(route('failed-invoices.index'))
+            ->assertOk()
+            ->assertDontSee($failedInvoiceUpload->original_pdf_filename);
+
+        $this->actingAs($otherUser)
+            ->get(route('failed-invoices.download', $failedInvoiceUpload))
+            ->assertForbidden();
+
+        $this->actingAs($otherUser)
+            ->delete(route('failed-invoices.destroy', $failedInvoiceUpload))
+            ->assertForbidden();
+
+        $this->actingAs($owner)
+            ->get(route('failed-invoices.download', $failedInvoiceUpload))
+            ->assertOk();
+    }
+
+    public function test_deleting_failed_invoice_upload_removes_pdf_and_record(): void
+    {
+        Storage::fake();
+
+        $user = User::factory()->create();
+        $failedInvoiceUpload = $this->createFailedInvoiceUpload($user);
+
+        $this->actingAs($user)
+            ->delete(route('failed-invoices.destroy', $failedInvoiceUpload))
+            ->assertRedirect(route('failed-invoices.index'));
+
+        $this->assertDatabaseMissing('failed_invoice_uploads', ['id' => $failedInvoiceUpload->id]);
+        Storage::assertMissing($failedInvoiceUpload->original_pdf_path);
+    }
+
     private function createInvoiceUpload(User $user): InvoiceUpload
     {
         Storage::put('invoices/original.pdf', 'invoice');
@@ -222,6 +306,18 @@ class SecurityAndWorkflowTest extends TestCase
                     'raw_type' => 'BREPAK',
                 ],
             ],
+        ]);
+    }
+
+    private function createFailedInvoiceUpload(User $user): FailedInvoiceUpload
+    {
+        Storage::put('failed/broken.pdf', 'broken invoice');
+
+        return FailedInvoiceUpload::create([
+            'user_id' => $user->id,
+            'original_pdf_path' => 'failed/broken.pdf',
+            'original_pdf_filename' => 'broken.pdf',
+            'error_message' => 'Parser failed.',
         ]);
     }
 

@@ -15,6 +15,9 @@
             <a href="{{ route('invoices.index') }}" class="w-full rounded-md border border-gray-300 bg-white px-4 py-2 text-center font-semibold text-gray-800 hover:bg-gray-50 sm:w-auto">
                 Facturen
             </a>
+            <a href="{{ route('failed-invoices.index') }}" class="w-full rounded-md border border-gray-300 bg-white px-4 py-2 text-center font-semibold text-gray-800 hover:bg-gray-50 sm:w-auto">
+                Mislukte uploads
+            </a>
             <a href="{{ route('reports.index') }}" class="w-full rounded-md bg-gray-900 px-4 py-2 text-center font-semibold text-white hover:bg-gray-700 sm:w-auto">
                 Rapporten
             </a>
@@ -26,18 +29,22 @@
         </div>
     </div>
 
-    <div class="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 lg:gap-6">
+    <div class="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 lg:gap-6">
         <section class="rounded-lg bg-white p-5 shadow-sm sm:p-6">
             <p class="text-sm text-gray-500">Geuploade facturen</p>
             <p class="mt-2 text-2xl font-semibold">{{ $invoiceUploadsCount }}</p>
         </section>
+        <a href="{{ route('failed-invoices.index') }}" class="rounded-lg bg-white p-5 shadow-sm hover:bg-gray-50 sm:p-6">
+            <p class="text-sm text-gray-500">Mislukte uploads</p>
+            <p class="mt-2 text-2xl font-semibold">{{ $failedInvoiceUploadsCount }}</p>
+        </a>
         <section class="rounded-lg bg-white p-5 shadow-sm sm:p-6">
             <p class="text-sm text-gray-500">Rapporten</p>
             <p class="mt-2 text-2xl font-semibold">{{ $reportsCount }}</p>
         </section>
         <section class="rounded-lg bg-white p-5 shadow-sm sm:p-6">
             <p class="text-sm text-gray-500">Rol</p>
-            <p class="mt-2 text-2xl font-semibold">{{ $user->role }}</p>
+            <p class="mt-2 text-2xl font-semibold">{{ $user->isAdmin() ? 'Beheerder' : 'Gebruiker' }}</p>
         </section>
     </div>
 

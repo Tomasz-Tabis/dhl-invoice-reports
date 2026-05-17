@@ -17,7 +17,7 @@
             </div>
 
             <div>
-                <label for="email" class="block text-sm font-medium text-gray-700">Email</label>
+                <label for="email" class="block text-sm font-medium text-gray-700">E-mail</label>
                 <input id="email" name="email" type="email" value="{{ old('email') }}" required class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-yellow-500 focus:outline-none focus:ring-1 focus:ring-yellow-500 sm:text-base">
                 @error('email')<p class="mt-1 text-sm text-red-600">{{ $message }}</p>@enderror
             </div>
@@ -25,8 +25,8 @@
             <div>
                 <label for="role" class="block text-sm font-medium text-gray-700">Rol</label>
                 <select id="role" name="role" required class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-yellow-500 focus:outline-none focus:ring-1 focus:ring-yellow-500 sm:text-base">
-                    <option value="user" @selected(old('role', 'user') === 'user')>user</option>
-                    <option value="admin" @selected(old('role') === 'admin')>admin</option>
+                    <option value="user" @selected(old('role', 'user') === 'user')>Gebruiker</option>
+                    <option value="admin" @selected(old('role') === 'admin')>Beheerder</option>
                 </select>
                 @error('role')<p class="mt-1 text-sm text-red-600">{{ $message }}</p>@enderror
             </div>

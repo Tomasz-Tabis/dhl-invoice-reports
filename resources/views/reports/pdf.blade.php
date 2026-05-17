@@ -20,7 +20,7 @@
 <body>
     <h1>Week {{ $weekNumber }} overzicht</h1>
 
-    @foreach($brepakDrivers as $driver)
+    @foreach($stopDrivers as $driver)
         <div class="driver-block">
             <h2>{{ $driver['name'] }}</h2>
             <table>

@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{{ config('app.name', 'DHL Rapporten') }}</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
 <body class="min-h-screen bg-gray-100 text-gray-900">
     <div class="min-h-screen">
@@ -37,6 +37,7 @@
                     >
                         <a href="{{ route('dashboard') }}" class="block rounded-md px-2 py-2 text-gray-700 hover:bg-gray-50 hover:text-gray-950 md:px-0 md:py-0 md:hover:bg-transparent">Overzicht</a>
                         <a href="{{ route('invoices.index') }}" class="block rounded-md px-2 py-2 text-gray-700 hover:bg-gray-50 hover:text-gray-950 md:px-0 md:py-0 md:hover:bg-transparent">Facturen</a>
+                        <a href="{{ route('failed-invoices.index') }}" class="block rounded-md px-2 py-2 text-gray-700 hover:bg-gray-50 hover:text-gray-950 md:px-0 md:py-0 md:hover:bg-transparent">Mislukte uploads</a>
                         <a href="{{ route('reports.index') }}" class="block rounded-md px-2 py-2 text-gray-700 hover:bg-gray-50 hover:text-gray-950 md:px-0 md:py-0 md:hover:bg-transparent">Rapporten</a>
 
                         @if(auth()->user()->isAdmin())

@@ -18,7 +18,7 @@ return new class extends Migration
                         ->nullable()
                         ->after('user_id')
                         ->constrained()
-                        ->nullOnDelete();
+                        ->cascadeOnDelete();
                 }
 
                 if (! Schema::hasColumn('reports', 'selected_drivers')) {
@@ -32,7 +32,7 @@ return new class extends Migration
         Schema::create('reports', function (Blueprint $table) {
             $table->id();
             $table->foreignId('user_id')->constrained()->cascadeOnDelete();
-            $table->foreignId('invoice_upload_id')->nullable()->constrained()->nullOnDelete();
+            $table->foreignId('invoice_upload_id')->nullable()->constrained()->cascadeOnDelete();
             $table->string('original_pdf_path');
             $table->string('original_pdf_filename');
             $table->string('generated_pdf_path');

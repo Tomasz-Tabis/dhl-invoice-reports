@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers;
 
-use App\Exceptions\DhlInvoiceParserException;
+use App\Models\FailedInvoiceUpload;
 use App\Models\InvoiceUpload;
 use App\Models\Report;
 use App\Services\DhlInvoiceParserService;
@@ -11,7 +11,9 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Illuminate\View\View;
+use Throwable;
 
 class InvoiceController extends Controller
 {
@@ -44,30 +46,62 @@ class InvoiceController extends Controller
 
         $file = $validated['invoice_pdf'];
         $storedFilename = now()->format('YmdHis').'-'.Str::uuid().'.pdf';
-        $originalPath = $file->storeAs('invoices', $storedFilename);
 
         try {
-            $parsedData = $parser->parse(Storage::path($originalPath));
-        } catch (DhlInvoiceParserException $exception) {
-            Storage::delete($originalPath);
+            $parsedData = $parser->parse($file->getRealPath());
+        } catch (Throwable $exception) {
+            try {
+                $failedPath = $file->storeAs('failed', $storedFilename);
+
+                if ($failedPath === false) {
+                    throw new \RuntimeException('Failed upload storage returned false.');
+                }
+
+                FailedInvoiceUpload::create([
+                    'user_id' => $request->user()->id,
+                    'original_pdf_path' => $failedPath,
+                    'original_pdf_filename' => $file->getClientOriginalName(),
+                    'error_message' => $exception->getMessage(),
+                ]);
+            } catch (Throwable) {
+                return back()
+                    ->withErrors(['invoice_pdf' => 'De factuur kon niet worden verwerkt en niet worden opgeslagen bij mislukte uploads.'])
+                    ->withInput();
+            }
 
             return back()
-                ->withErrors(['invoice_pdf' => $exception->getMessage()])
+                ->withErrors(['invoice_pdf' => 'De factuur kon niet worden verwerkt, maar het bestand is opgeslagen in mislukte uploads.'])
                 ->withInput();
         }
 
-        $invoiceUpload = InvoiceUpload::create([
-            'user_id' => $request->user()->id,
-            'original_pdf_path' => $originalPath,
-            'original_pdf_filename' => $file->getClientOriginalName(),
-            'parsed_data' => $parsedData,
-            'week_number' => $parsedData['week_number'],
-            'year' => $parsedData['year'],
-        ]);
+        try {
+            $originalPath = $file->storeAs('invoices', $storedFilename);
+
+            if ($originalPath === false) {
+                throw new \RuntimeException('Invoice storage returned false.');
+            }
+
+            $invoiceUpload = InvoiceUpload::create([
+                'user_id' => $request->user()->id,
+                'original_pdf_path' => $originalPath,
+                'original_pdf_filename' => $file->getClientOriginalName(),
+                'parsed_data' => $parsedData,
+                'week_number' => $parsedData['week_number'],
+                'year' => $parsedData['year'],
+            ]);
+        } catch (Throwable) {
+            if (isset($originalPath) && $originalPath !== false) {
+                Storage::delete($originalPath);
+            }
+
+            return back()
+                ->withErrors(['invoice_pdf' => 'De factuur kon niet worden opgeslagen. Probeer het opnieuw.'])
+                ->withInput();
+        }
 
         return redirect()
             ->route('invoices.show', $invoiceUpload)
-            ->with('status', 'Factuur is geupload. Je kunt nu een rapport genereren.');
+            ->with('status', 'Factuur is geüpload. Je kunt nu een rapport genereren.');
     }
 
     public function show(Request $request, InvoiceUpload $invoiceUpload): View
@@ -95,35 +129,47 @@ class InvoiceController extends Controller
 
         $validated = $request->validate([
             'selected_drivers' => ['required', 'array', 'min:1'],
-            'selected_drivers.*' => ['required', 'string', 'in:'.implode(',', $availableDriverKeys)],
+            'selected_drivers.*' => ['required', 'string', Rule::in($availableDriverKeys)],
         ], [
             'selected_drivers.required' => 'Selecteer minimaal één chauffeur.',
             'selected_drivers.min' => 'Selecteer minimaal één chauffeur.',
             'selected_drivers.*.in' => 'Selecteer een geldige chauffeur.',
         ]);
 
-        $selectedDriversSummary = $reportPdfService->selectedDriversSummary(
-            $invoiceUpload->parsed_data,
-            $validated['selected_drivers'],
-        );
-
         $generatedReportPath = 'reports/report-'.$invoiceUpload->id.'-'.Str::uuid().'.pdf';
 
-        Storage::put($generatedReportPath, $reportPdfService->generate(
-            $invoiceUpload->parsed_data,
-            $validated['selected_drivers'],
-        ));
+        try {
+            $selectedDriversSummary = $reportPdfService->selectedDriversSummary(
+                $invoiceUpload->parsed_data,
+                $validated['selected_drivers'],
+            );
 
-        Report::create([
-            'user_id' => $request->user()->id,
-            'invoice_upload_id' => $invoiceUpload->id,
-            'original_pdf_path' => $invoiceUpload->original_pdf_path,
-            'original_pdf_filename' => $invoiceUpload->original_pdf_filename,
-            'generated_pdf_path' => $generatedReportPath,
-            'week_number' => $invoiceUpload->week_number,
-            'year' => $invoiceUpload->year,
-            'selected_drivers' => $selectedDriversSummary,
-        ]);
+            $pdfContents = $reportPdfService->generate(
+                $invoiceUpload->parsed_data,
+                $validated['selected_drivers'],
+            );
+
+            if (Storage::put($generatedReportPath, $pdfContents) === false) {
+                throw new \RuntimeException('Report storage returned false.');
+            }
+
+            Report::create([
+                'user_id' => $request->user()->id,
+                'invoice_upload_id' => $invoiceUpload->id,
+                'original_pdf_path' => $invoiceUpload->original_pdf_path,
+                'original_pdf_filename' => $invoiceUpload->original_pdf_filename,
+                'generated_pdf_path' => $generatedReportPath,
+                'week_number' => $invoiceUpload->week_number,
+                'year' => $invoiceUpload->year,
+                'selected_drivers' => $selectedDriversSummary,
+            ]);
+        } catch (Throwable) {
+            Storage::delete($generatedReportPath);
+
+            return back()
+                ->withErrors(['selected_drivers' => 'Het rapport kon niet worden gegenereerd. Probeer het opnieuw.'])
+                ->withInput();
+        }
 
         return redirect()
             ->route('invoices.show', $invoiceUpload)
