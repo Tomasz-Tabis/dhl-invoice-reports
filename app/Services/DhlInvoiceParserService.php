@@ -102,16 +102,15 @@ class DhlInvoiceParserService
      */
     private function parseDrivers(string $text): array
     {
-        preg_match_all(
-            '/Specificatie ritten gereden door\s+(?<company>.+?)\s+-\s+(?<driver>.+?)\s+\((?<employee_number>\d+)\)\s+op\s+(?<raw_type>[A-Z]{3}(?:PAK(?:\s*\(Specialized\))?|ZON)|[^\r\n]*\bNCC\b[^\r\n]*)(?<body>.*?)(?=Specificatie ritten gereden door\s+.+?\s+-|Appendix: Ritgegevens|\z)/su',
-            $text,
-            $matches,
-            PREG_SET_ORDER,
-        );
+        [$matches, $format] = $this->matchDriverBlocks($text);
 
         if ($matches === []) {
             throw DhlInvoiceParserException::missingDrivers();
         }
+
+        Log::debug('Detected DHL header format', [
+            'format' => $format,
+        ]);
 
         $drivers = [];
         $skippedIgnoredBlock = false;
@@ -197,6 +196,29 @@ class DhlInvoiceParserService
         }
 
         return $drivers;
+    }
+
+    /**
+     * @return array{0: array<int, array<string, string>>, 1: string|null}
+     */
+    private function matchDriverBlocks(string $text): array
+    {
+        $rawTypePattern = '[A-Z]{3}(?:PAK(?:\s*\(Specialized\))?|ZON)|[^\r\n]*\bNCC\b[^\r\n]*';
+
+        $patterns = [
+            'A' => '/Specificatie ritten gereden door\s+(?<company>.+?)\s+-\s+(?<driver>.+?)\s+\((?<employee_number>\d+)\)\s+op\s+(?<raw_type>'.$rawTypePattern.')(?<body>.*?)(?=Specificatie ritten gereden door\s+.+?\s+-|Appendix: Ritgegevens|\z)/su',
+            'B' => '/Specificatie\s+(?<raw_type>'.$rawTypePattern.')\s+door\s+(?<company>.+?)\s+-\s+(?<driver>.+?)\s+\((?<employee_number>\d+)\)(?<body>.*?)(?=Specificatie\s+(?:'.$rawTypePattern.')\s+door\s+.+?\s+-|Appendix: Ritgegevens|\z)/su',
+        ];
+
+        foreach ($patterns as $format => $pattern) {
+            preg_match_all($pattern, $text, $matches, PREG_SET_ORDER);
+
+            if ($matches !== []) {
+                return [$matches, $format];
+            }
+        }
+
+        return [[], null];
     }
 
     /**

@@ -155,6 +155,124 @@ class DhlInvoiceParserServiceTest extends TestCase
         ], array_intersect_key($drivers[2], array_flip(['company', 'hub_code', 'raw_type', 'type'])));
     }
 
+    public function test_it_detects_old_dhl_header_format(): void
+    {
+        Log::spy();
+
+        $service = app(DhlInvoiceParserService::class);
+        $reflection = new \ReflectionClass($service);
+        $method = $reflection->getMethod('parseDrivers');
+        $method->setAccessible(true);
+
+        $drivers = $method->invoke($service, implode("\n", [
+            'Specificatie ritten gereden door VM - BEKKER, SVEN (825248) op BREPAK',
+            'Datum Postwijk Stops plan/succes',
+            '01-04-2026 1000 220 / 207',
+            'Appendix: Ritgegevens',
+        ]));
+
+        $this->assertCount(1, $drivers);
+        $this->assertSame([
+            'company' => 'VM',
+            'driver' => 'Sven Bekker',
+            'employee_number' => '825248',
+            'raw_type' => 'BREPAK',
+        ], [
+            'company' => $drivers[0]['company'],
+            'driver' => $drivers[0]['name'],
+            'employee_number' => $drivers[0]['employee_number'],
+            'raw_type' => $drivers[0]['raw_type'],
+        ]);
+
+        Log::shouldHaveReceived('debug')
+            ->with('Detected DHL header format', [
+                'format' => 'A',
+            ])
+            ->once();
+    }
+
+    public function test_it_detects_new_dhl_header_format(): void
+    {
+        Log::spy();
+
+        $service = app(DhlInvoiceParserService::class);
+        $reflection = new \ReflectionClass($service);
+        $method = $reflection->getMethod('parseDrivers');
+        $method->setAccessible(true);
+
+        $drivers = $method->invoke($service, implode("\n", [
+            'Specificatie BREPAK door VM - BEKKER, SVEN (825248)',
+            'Datum Postwijk Stops plan/succes',
+            '01-04-2026 1000 220 / 207',
+            'Appendix: Ritgegevens',
+        ]));
+
+        $this->assertCount(1, $drivers);
+        $this->assertSame([
+            'company' => 'VM',
+            'driver' => 'Sven Bekker',
+            'employee_number' => '825248',
+            'raw_type' => 'BREPAK',
+        ], [
+            'company' => $drivers[0]['company'],
+            'driver' => $drivers[0]['name'],
+            'employee_number' => $drivers[0]['employee_number'],
+            'raw_type' => $drivers[0]['raw_type'],
+        ]);
+
+        Log::shouldHaveReceived('debug')
+            ->with('Detected DHL header format', [
+                'format' => 'B',
+            ])
+            ->once();
+    }
+
+    public function test_new_dhl_header_format_keeps_supported_types_and_company_names(): void
+    {
+        $service = app(DhlInvoiceParserService::class);
+        $reflection = new \ReflectionClass($service);
+        $method = $reflection->getMethod('parseDrivers');
+        $method->setAccessible(true);
+
+        $drivers = $method->invoke($service, implode("\n", [
+            'Specificatie AMSPAK door WBG - DRIVER, ONE (111111)',
+            'Datum Postwijk Stops plan/succes',
+            '01-04-2026 1000 220 / 207',
+            'Specificatie RTMZON door MDN Transport - DRIVER, TWO (222222)',
+            'Datum uren p/u (EUR) zondag uren zon/feest p/u (EUR) bedrag (EUR)',
+            '05-04-2026 03:16 35,16 03:16 15,24 164,64',
+            'Specificatie UTRPAK (Specialized) door ATD Transport - DRIVER, THREE (333333)',
+            'Datum uren p/u (EUR) bedrag (EUR)',
+            '06-04-2026 01:20 33,53 44,71',
+            'Specificatie NCC door Any Other Company - DRIVER, NCC (999999)',
+            'Gereden ritten op NCC',
+            '07-04-2026 1000 999 / 999',
+            'Appendix: Ritgegevens',
+        ]));
+
+        $this->assertCount(3, $drivers);
+        $this->assertSame(['WBG', 'MDN Transport', 'ATD Transport'], array_column($drivers, 'company'));
+        $this->assertSame(['AMSPAK', 'RTMZON', 'UTRPAK (Specialized)'], array_column($drivers, 'raw_type'));
+        $this->assertSame(['STOPS', 'HOURS', 'HOURS_SPECIALIZED'], array_column($drivers, 'type'));
+        $this->assertNotContains('999999', array_column($drivers, 'employee_number'));
+    }
+
+    public function test_it_reports_unsupported_dhl_header_format(): void
+    {
+        $service = app(DhlInvoiceParserService::class);
+        $reflection = new \ReflectionClass($service);
+        $method = $reflection->getMethod('parseDrivers');
+        $method->setAccessible(true);
+
+        $this->expectExceptionMessage('Geen ondersteund DHL-factuurformaat gevonden.');
+
+        $method->invoke($service, implode("\n", [
+            'Specificatie zonder ondersteund formaat',
+            'Datum Postwijk Stops plan/succes',
+            '01-04-2026 1000 220 / 207',
+        ]));
+    }
+
     public function test_it_detects_arbitrary_company_names(): void
     {
         Log::spy();

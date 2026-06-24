@@ -18,6 +18,6 @@ class DhlInvoiceParserException extends RuntimeException
 
     public static function missingDrivers(): self
     {
-        return new self('Er zijn geen chauffeursblokken gevonden in de factuur.');
+        return new self('Geen ondersteund DHL-factuurformaat gevonden.');
     }
 }
